@@ -9,6 +9,7 @@ set ONCURA_BILLING_LOCAL=1 to skip the gate.
 """
 from __future__ import annotations
 
+import hmac
 import os
 
 import streamlit as st
@@ -19,6 +20,17 @@ def _secret(key, default=None):
         return st.secrets.get(key, default)
     except Exception:
         return default
+
+
+def _pw_match(entered, expected) -> bool:
+    """Constant-time password comparison. The app will sit on a public Cloud
+    URL, so the equality check must not leak match-prefix length via timing.
+    Same pattern as oncura-flex-rebate-app core/auth.py."""
+    if not expected:
+        return False
+    return hmac.compare_digest(
+        str(entered).encode("utf-8"), str(expected).encode("utf-8")
+    )
 
 
 def require_login():
@@ -67,7 +79,7 @@ def require_login():
             )
             submitted = st.form_submit_button("Enter", type="primary", use_container_width=True)
         if submitted:
-            if entered_pw != app_pw:
+            if not _pw_match(entered_pw, app_pw):
                 st.error("Incorrect password.")
                 st.stop()
             initials = (entered_initials or "").strip().upper()
